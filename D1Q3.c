@@ -1,5 +1,13 @@
 //Combined FLBM with MC coupled through shared kappa and theta.
 
+//Need to optimize a great deal.
+/***************************************************/
+/*                      TO DO                      */
+/* -Second moment                                  */
+/* -Examine Discrepancy at different lattice Sizes */
+/* -Compare with diffuse D1Q3                      */
+/***************************************************/
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
