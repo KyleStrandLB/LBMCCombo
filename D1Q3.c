@@ -10,7 +10,7 @@
 #include <fftw3.h>
 #include <mygraph.h>
 
-#define xdim 64
+#define xdim 32
 
 //LB arrays
 double n[xdim];
@@ -24,12 +24,11 @@ double nk[xdim], nkave[xdim];
 double Fk0nid[xdim], Fk1nid[xdim], Fk0ave[xdim], Fk1ave[xdim];
 double w[3];
 double psi[3];
-double LBhist[200];
 
 //LB Parameters
 double n0 = 100;
 double theta = 1./3.;
-double kap = 0.1;
+double kap = 0.;
 double A = 0;
 double B = 0;
 double aven;
@@ -51,12 +50,15 @@ double AkMC[xdim];
 
 //MC Parameters
 int n0MC = 100;
-double sumnMC = 0;
-double avenMC;
+int sumnMC = 0;
+int avenMC;
 
 //Histogram Arrays
 double Poisson[200];
-//double MChist[200];
+int MChist[200];
+double MChistprint[200];
+int LBhist[200];
+double LBhistprint[200];
 
 //GUI controls
 int repeat = 1;
@@ -112,11 +114,14 @@ void ResetAveCount() {
   nMCFFTcount = 0; // Add in later
 }
 
-/*void Histogram() {
+void Histogram() {
   for (int i = 0; i < xdim; i++) {
-    MChist[nMC[i]]++;    
+    MChist[nMC[i]] =  MChist[nMC[i]] + 1;
+    LBhist[(int)round(n[i])] = LBhist[(int)round(n[i])] + 1;
+    MChistprint[nMC[i]] = MChist[nMC[i]]/((double)iterations*xdim);
+    LBhistprint[(int)round(n[i])] = LBhist[(int)round(n[i])]/((double)iterations*xdim);
   }
-}*/
+}
 
 void FEAnalysis(double A[xdim], double F0out[xdim], double F1out[xdim], int m) {
   double sum0nid = 0;
@@ -137,18 +142,21 @@ void FEAveraging(double F0[xdim], double F1[xdim], double F0ave[xdim], double F1
 
 }
 
+//Why are these not constantly 100?
 void Averaging() {
+  sumn = 0;
   for (int i = 0; i < xdim; i++) {
     sumn += n[i];
   }
-  aven = sumn/((double)iterations*xdim);
+  aven = sumn/((double)xdim);
 }
 
 void AveragingMC() {
+  sumnMC=0;
   for (int i = 0; i < xdim; i++) {
     sumnMC += nMC[i];
   }
-  avenMC = sumnMC/((double)iterations*xdim);
+  avenMC = sumnMC/((double)xdim);
 }
 
 void Weights(){
@@ -230,6 +238,7 @@ void initMC() {
     NMC[i] = nMC[i];
   }
   nMCFFTcount = FourierXformMC(NMC, nMCFFTcount);
+  AveragingMC();
 }
 
 void MCCheck(int h[xdim]) {
@@ -325,7 +334,11 @@ void init() {
     MU(i);
     //nktheory[i] = CalculateRhoKTheory(i);  // Do this after the actual simulation works
   }
-
+  for (int i = 0; i < 200; i++) {
+    MChist[i] = MChistprint[i] = 0;
+    LBhist[i] = LBhistprint[i] = 0;
+  }
+  Averaging();
   ResetAveCount();
 }
 
@@ -366,8 +379,7 @@ void iteration() {
     Meq0[i] += m[0][2] * feq2[i];
     Meq1[i] += m[1][0] * feq0[i];
     Meq1[i] += m[1][1] * feq1[i];
-    Meq1[i] += 
-m[1][2] * feq2[i];
+    Meq1[i] += m[1][2] * feq2[i];
     Meq2[i] += m[2][0] * feq0[i];
     Meq2[i] += m[2][1] * feq1[i];
     Meq2[i] += m[2][2] * feq2[i];
@@ -458,7 +470,7 @@ m[1][2] * feq2[i];
 
   Averaging();
   
-  //Histogram();
+  Histogram();
 
   iterations++;
 }
@@ -483,7 +495,10 @@ void GUI() {
   DefineGraphN_R("Fk1nidaveMC", &Fk1aveMC[0], &Xdim, NULL);
   NewGraph();
   DefineGraphN_R("Poisson", &Poisson[0], &Pois, NULL);
-  //DefineGraphN_R("MC Dist", &MChist[0], &Pois, NULL);
+  SetDefaultColor(2);
+  DefineGraphN_R("MC Dist", &MChistprint[0], &Pois, NULL);
+  SetDefaultColor(4);
+  DefineGraphN_R("LB Dist", &LBhistprint[0], &Pois, NULL);
 
   StartMenu("Fluctuating D1Q3 LB and MC", 1);
     DefineInt("Iterations", &iterations);
@@ -508,7 +523,7 @@ void GUI() {
       DefineInt("n0MC", &n0MC);
       DefineDouble("kappa", &kap);
       DefineDouble("theta", &theta);
-      DefineDouble("Average nMC", &avenMC);
+      DefineInt("Average nMC", &avenMC);
     EndMenu();
     DefineFunction("Initialize", &init);
     DefineFunction("Reset FFT Averaging", &ResetAveCount);
