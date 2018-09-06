@@ -44,6 +44,7 @@ double sumn = 0;
 double tau[3] = {1., 1., 1.};
 double forcescale = 1.;
 double noisescale = 1.;
+double aven2lb;
 int v[3] = {0, 1, -1};
 int forcecheck = 0;
 int noisecheck = 1;
@@ -55,6 +56,7 @@ double NMC[xdim];
 double nkMC[xdim], nkaveMC[xdim];
 double Fk0nidMC[xdim], Fk1nidMC[xdim], Fk0aveMC[xdim], Fk1aveMC[xdim];
 double AkMC[xdim];
+double aven2MC;
 
 //MC Parameters
 int n0MC = 100;
@@ -67,6 +69,7 @@ int MChist[200];
 double MChistprint[200];
 int LBhist[200];
 double LBhistprint[200];
+double Moment2Th;
 
 //GUI controls
 int repeat = 1;
@@ -150,7 +153,19 @@ void FEAveraging(double F0[xdim], double F1[xdim], double F0ave[xdim], double F1
 
 }
 
-//Why are these not constantly 100?
+void SecondMoment() {
+  double sumlb = 0;
+  double summc = 0;
+  Moment2Th = n0*n0+n0;
+  for (int i = 0; i < xdim; i++) {
+    sumlb = sumlb + n[i]*n[i];
+    summc = summc + nMC[i]*nMC[i];
+  }
+  aven2lb = sumlb/((double)xdim);
+  aven2MC = summc/((double)xdim);
+  
+}
+
 void Averaging() {
   sumn = 0;
   for (int i = 0; i < xdim; i++) {
@@ -347,6 +362,7 @@ void init() {
     LBhist[i] = LBhistprint[i] = 0;
   }
   Averaging();
+  SecondMoment();
   ResetAveCount();
 }
 
@@ -477,7 +493,7 @@ void iteration() {
   FEAveraging(Fk0nid, Fk1nid, Fk0ave, Fk1ave);
 
   Averaging();
-  
+  SecondMoment();
   Histogram();
 
   iterations++;
@@ -526,12 +542,16 @@ void GUI() {
         DefineDouble("tau[2]", &tau[2]);
       EndMenu();
       DefineDouble("Average n", &aven);
+      DefineDouble("2nd Moment LB", &aven2lb);
+      DefineDouble("2nd Moment Theory", &Moment2Th);
     EndMenu();
     StartMenu("MC Parameters", 0);
       DefineInt("n0MC", &n0MC);
       DefineDouble("kappa", &kap);
       DefineDouble("theta", &theta);
       DefineInt("Average nMC", &avenMC);
+      DefineDouble("2nd Moment MC", &aven2MC);
+      DefineDouble("2nd Moment Theory", &Moment2Th);
     EndMenu();
     DefineFunction("Initialize", &init);
     DefineFunction("Reset FFT Averaging", &ResetAveCount);
