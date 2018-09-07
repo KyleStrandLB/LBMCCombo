@@ -30,6 +30,7 @@ double nk[xdim], nkave[xdim];
 double Fk0nid[xdim], Fk1nid[xdim], Fk0ave[xdim], Fk1ave[xdim];
 double w[3];
 double psi[3];
+double nktheory[xdim];
 
 //LB Parameters
 double n0 = 100;
@@ -39,9 +40,12 @@ double A = 0;
 double B = 0;
 double aven;
 double sumn = 0;
+double sumlb = 0;
 double tau[3] = {1., 1., 1.};
 double forcescale = 1.;
 double noisescale = 1.;
+double xi;
+double xifudge = 1.;
 double aven2lb;
 int v[3] = {0, 1, -1};
 int forcecheck = 0;
@@ -60,6 +64,7 @@ double aven2MC;
 int n0MC = 100;
 int sumnMC = 0;
 int avenMC;
+double summc = 0;
 
 //Histogram Arrays
 double Poisson[200];
@@ -67,7 +72,8 @@ int MChist[200];
 double MChistprint[200];
 int LBhist[200];
 double LBhistprint[200];
-double Moment2Th;
+double Moment2ThLB;
+double Moment2ThMC;
 
 //GUI controls
 int repeat = 1;
@@ -91,6 +97,21 @@ void SetupFFT() {
   inMC = fftw_alloc_complex(xdim);
   outMC = fftw_alloc_complex(xdim);
   planMC = fftw_plan_dft_1d(xdim, inMC, outMC, -1, FFTW_ESTIMATE);
+}
+
+double CalculateRhoKTheory(int x) {
+  double nth;
+
+  int XDIM = xdim + 1;
+  if (x == 0) {
+    nth = 0;
+  } else if (x > xdim/2) {
+    nth = 2.*n0/(2.*XDIM)/(1.+xi*xi*XDIM*sin(M_PI*(XDIM%x)/XDIM)*sin(M_PI*(XDIM%x)/XDIM))*(1.-exp(-XDIM/xi)*(cos((XDIM%x)*XDIM)-xi*XDIM*sin((XDIM%x)*XDIM)));
+  } else {
+    nth = 2.*n0/(2.*XDIM)/(1.+xi*xi*XDIM*sin(M_PI*x/XDIM)*sin(M_PI*x/XDIM))*(1.-exp(-XDIM/xi)*(cos(x*XDIM) - xi*XDIM*sin(x*XDIM)));
+  }
+
+  return nth;
 }
 
 //Function to calculate the FFT
@@ -151,16 +172,18 @@ void FEAveraging(double F0[xdim], double F1[xdim], double F0ave[xdim], double F1
 
 }
 
+//Caclculate Second Moment
 void SecondMoment() {
-  double sumlb = 0;
-  double summc = 0;
-  Moment2Th = n0*n0+n0;
-  for (int i = 0; i < xdim; i++) {
-    sumlb = sumlb + n[i]*n[i];
+  //double sumlb = 0;
+  //double summc = 0;
+  Moment2ThLB = n0*n0+n0;
+  Moment2ThMC = n0MC*n0MC+n0MC;
+  for (int i = 0; i < xdim; i++) { // This is only averaged over space at each time step. 
+    sumlb = sumlb + n[i]*n[i];     // Maybe average over time?
     summc = summc + nMC[i]*nMC[i];
   }
-  aven2lb = sumlb/((double)xdim);
-  aven2MC = summc/((double)xdim);
+  aven2lb = sumlb/((double)xdim*iterations);
+  aven2MC = summc/((double)xdim*iterations);
   
 }
 
@@ -330,11 +353,13 @@ void PoissonDist() {
 }
 
 void init() {
+  sumn2LB = sumn2MC = 0;
   initMC(); 
   iterations = 0;
   PoissonDist(); // Do this after simulation works
   Weights();
   SetInteractionParameters();
+  xi = xifudge * sqrt(kap/theta);
 
   for (int i = 0; i < xdim; i++) {
     n[i] = n0;
@@ -352,7 +377,7 @@ void init() {
   for (int i = 0; i < xdim; i++) {
     SetEqDist(i);
     MU(i);
-    //nktheory[i] = CalculateRhoKTheory(i);  // Do this after the actual simulation works
+    nktheory[i] = CalculateRhoKTheory(i);  
   }
   for (int i = 0; i < 200; i++) {
     MChist[i] = MChistprint[i] = 0;
@@ -368,6 +393,7 @@ void iteration() {
   iterationMC();
   Weights();
   PoissonDist();
+  xi = xifudge * sqrt(kap/theta);
 
   double Meq0[xdim], Meq1[xdim], Meq2[xdim];
 
@@ -444,7 +470,7 @@ void iteration() {
 
   for (int i = 0; i < xdim; i++) {
     MU(i);
-    //nktheory[i] = CalculateRhoKTheory(i);
+    nktheory[i] = CalculateRhoKTheory(i);
   }
 
   //Calculate and include forcing terms
@@ -508,8 +534,11 @@ void GUI() {
   DefineGraphN_R("nk", &nk[0], &Xdim, NULL);
   DefineGraphN_R("nkave", &nkave[0], &Xdim, NULL);
   DefineGraphN_R("nkMC", &nkMC[0], &Xdim, NULL);
+  SetDefaultColor(2);
   DefineGraphN_R("nkMCave", &nkaveMC[0], &Xdim, NULL);
-  //DefineGraphN_R("nktheory", &nktheory[0], &Xdim, NULL);
+  SetDefaultColor(4);
+  DefineGraphN_R("nktheory", &nktheory[0], &Xdim, NULL);
+  SetDefaultColor(1);
   DefineGraphN_R("Fk0nidave", &Fk0ave[0], &Xdim, NULL);
   DefineGraphN_R("Fk1nidave", &Fk1ave[0], &Xdim, NULL);
   DefineGraphN_R("Fk0nidaveMC", &Fk0aveMC[0], &Xdim, NULL);
@@ -531,6 +560,7 @@ void GUI() {
       DefineDouble("theta", &theta);
       DefineDouble("Noise Scale", &noisescale);
       DefineDouble("Force Scale", &forcescale);
+      DefineDouble("Xi Fudge", &xifudge);
       DefineBool("LB Noise", &noisecheck);
       DefineBool("LB Forcing", &forcecheck);
       StartMenu("Relaxation Times", 0);
@@ -540,7 +570,7 @@ void GUI() {
       EndMenu();
       DefineDouble("Average n", &aven);
       DefineDouble("2nd Moment LB", &aven2lb);
-      DefineDouble("2nd Moment Theory", &Moment2Th);
+      DefineDouble("2nd Moment Theory LB", &Moment2ThLB);
     EndMenu();
     StartMenu("MC Parameters", 0);
       DefineInt("n0MC", &n0MC);
@@ -548,7 +578,7 @@ void GUI() {
       DefineDouble("theta", &theta);
       DefineInt("Average nMC", &avenMC);
       DefineDouble("2nd Moment MC", &aven2MC);
-      DefineDouble("2nd Moment Theory", &Moment2Th);
+      DefineDouble("2nd Moment Theory MC", &Moment2ThMC);
     EndMenu();
     DefineFunction("Initialize", &init);
     DefineFunction("Reset FFT Averaging", &ResetAveCount);
